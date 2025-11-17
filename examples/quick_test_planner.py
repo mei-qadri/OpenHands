@@ -1,38 +1,28 @@
 #!/usr/bin/env python3
 """
-Quick test script for PlannerAgent on a specific repository.
+Corrected test script for PlannerAgent.
+
+This demonstrates the proper way to configure and use PlannerAgent.
 
 Usage:
-    # Set your API key
     export LLM_API_KEY=your-api-key
-
-    # Run the script
-    python examples/quick_test_planner.py
-
-    # Or with custom values
-    python examples/quick_test_planner.py /path/to/repo "Your task here"
+    python examples/quick_test_planner.py [repository] [task]
 """
 
 import os
 import sys
 
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # ============================================================================
-# CONFIGURATION - EDIT THESE VALUES
+# CONFIGURATION
 # ============================================================================
 
-# Repository path (default to current OpenHands repo)
 DEFAULT_REPO = "/home/user/OpenHands"
-
-# Default task
 DEFAULT_TASK = "Add type hints to the PlannerAgent.__init__ method"
-
-# LLM Configuration
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-5")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
-
-# ============================================================================
-# MAIN TEST FUNCTION
-# ============================================================================
 
 
 def run_planner_test(repo_path: str, task: str):
@@ -65,31 +55,47 @@ def run_planner_test(repo_path: str, task: str):
 
     # Import OpenHands components
     try:
-        from openhands.core.config import AgentConfig, LLMConfig
-        from openhands.llm.llm_registry import LLMRegistry
         from openhands.agenthub.planner_agent import PlannerAgent
         from openhands.controller.state.state import State
-        from openhands.events.action import MessageAction, AgentFinishAction
+        from openhands.core.config import AgentConfig, LLMConfig
+        from openhands.core.config.openhands_config import OpenHandsConfig
+        from openhands.events.action import AgentFinishAction, MessageAction
         from openhands.events.event import EventSource
+        from openhands.llm.llm_registry import LLMRegistry
     except ImportError as e:
         print(f"\n❌ Error importing OpenHands: {e}")
         print("\nMake sure OpenHands is installed:")
         print("  pip install -e .")
         sys.exit(1)
 
-    # Configure LLM
+    # CORRECT WAY: Create OpenHandsConfig with LLMConfig
+    print("\n🚀 Initializing PlannerAgent...")
+
+    # Step 1: Create LLM configuration
     llm_config = LLMConfig(model=LLM_MODEL, api_key=LLM_API_KEY)
 
-    # Configure Agent
-    agent_config = AgentConfig(agent_name="PlannerAgent", llm_config=llm_config)
+    # Step 2: Create OpenHands configuration
+    openhands_config = OpenHandsConfig()
+    openhands_config.set_llm_config(llm_config)  # Set the default LLM config
 
-    # Create agent
-    print("\n🚀 Initializing PlannerAgent...")
-    llm_registry = LLMRegistry()
-    agent = PlannerAgent(agent_config, llm_registry)
-    print(f"✅ Agent initialized with {len(agent.tools)} tools")
+    # Step 3: Create LLM Registry from the config
+    llm_registry = LLMRegistry(config=openhands_config)
 
-    # Create initial state
+    # Step 4: Create Agent configuration (no parameters needed)
+    agent_config = AgentConfig()
+
+    # Step 5: Create the agent
+    try:
+        agent = PlannerAgent(config=agent_config, llm_registry=llm_registry)
+        print(f"✅ Agent initialized with {len(agent.tools)} tools")
+    except Exception as e:
+        print(f"❌ Failed to initialize agent: {e}")
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Create initial state with user message
     state = State()
     user_message = MessageAction(content=task)
     user_message._source = EventSource.USER
@@ -106,8 +112,12 @@ def run_planner_test(repo_path: str, task: str):
         try:
             # Get next action
             action = agent.step(state)
-            print(f"Action type: {action.__class__.__name__}")
-            print(f"Action: {action.message if hasattr(action, 'message') else action}")
+            action_type = action.__class__.__name__
+            print(f"Action type: {action_type}")
+
+            # Show message if available
+            if hasattr(action, 'message'):
+                print(f"Message: {action.message[:200]}...")
 
             # Add to history
             state.history.append(action)
@@ -117,8 +127,8 @@ def run_planner_test(repo_path: str, task: str):
                 print("\n" + "=" * 70)
                 print("✅ PlannerAgent completed the task!")
                 print("=" * 70)
-                print(f"\n📊 Final Summary:")
-                print(f"  {action.final_thought}")
+                if action.final_thought:
+                    print(f"\n📊 Final Summary:\n  {action.final_thought}")
 
                 if action.outputs:
                     print(f"\n📤 Outputs:")
@@ -126,10 +136,12 @@ def run_planner_test(repo_path: str, task: str):
                         print(f"  - {key}: {value}")
                 break
 
-            # Show current plan if available
-            if agent.current_plan and iteration % 5 == 0:
+            # Show current plan periodically
+            if agent.current_plan and (iteration + 1) % 5 == 0:
                 print("\n📋 Current Plan Status:")
-                print(agent.current_plan.get_summary())
+                summary_lines = agent.current_plan.get_summary().split('\n')
+                for line in summary_lines[:10]:  # Show first 10 lines
+                    print(f"  {line}")
 
         except KeyboardInterrupt:
             print("\n\n⚠️  Interrupted by user")
@@ -150,18 +162,6 @@ def run_planner_test(repo_path: str, task: str):
         print("📋 Final Plan:")
         print("=" * 70)
         print(agent.current_plan.get_summary())
-        print("\nSteps:")
-        for step in agent.current_plan.steps:
-            status_emoji = {
-                'pending': '⏳',
-                'in_progress': '🔄',
-                'completed': '✅',
-                'failed': '❌',
-                'blocked': '🚫',
-            }.get(step.status.value, '❓')
-            print(f"  {status_emoji} {step.id}: {step.description}")
-            if step.result:
-                print(f"      Result: {step.result[:100]}...")
 
     # Restore directory
     os.chdir(original_dir)
@@ -171,18 +171,11 @@ def run_planner_test(repo_path: str, task: str):
     print("=" * 70)
 
 
-# ============================================================================
-# COMMAND LINE INTERFACE
-# ============================================================================
-
-
 def main():
     """Main entry point."""
-    # Parse command line arguments
     repo_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_REPO
     task = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_TASK
 
-    # Run test
     run_planner_test(repo_path, task)
 
 
