@@ -1,0 +1,8 @@
+"""PlannerAgent: A meta-agent for hierarchical task planning and execution."""
+
+from openhands.agenthub.planner_agent.planner_agent import PlannerAgent
+from openhands.controller.agent import Agent
+
+Agent.register('PlannerAgent', PlannerAgent)
+
+__all__ = ['PlannerAgent']
