@@ -103,6 +103,29 @@ Notice:
 - `llm_config` is a string, not an LLMConfig object!
 - The `model_config = ConfigDict(extra='forbid')` means it rejects unknown fields
 
+## Issue 2: Prompt File Naming
+
+The PlannerAgent also had a prompt file naming issue:
+
+### Problem
+- Created `system_prompt.jinja2` but OpenHands expects `.j2` extension
+- When `enable_plan_mode=True` (the default), it looks for `system_prompt_long_horizon.j2`
+
+### Solution
+✅ Renamed `system_prompt.jinja2` → `system_prompt.j2`
+✅ Created `system_prompt_long_horizon.j2` for plan mode
+
+Both files now exist and use the correct `.j2` extension.
+
+## Summary of Fixes
+
+1. ✅ Fixed AgentConfig initialization (no parameters needed)
+2. ✅ Fixed LLM configuration (use OpenHandsConfig + LLMRegistry)
+3. ✅ Fixed prompt file naming (`.j2` extension, not `.jinja2`)
+4. ✅ Added `system_prompt_long_horizon.j2` for plan mode
+
+The PlannerAgent should now initialize and run without errors!
+
 ## Apology
 
 Sorry for the confusion in the initial examples! The corrected `quick_test_planner.py` script now shows the proper configuration pattern that matches OpenHands' actual API.
