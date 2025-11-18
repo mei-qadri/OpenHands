@@ -117,12 +117,28 @@ The PlannerAgent also had a prompt file naming issue:
 
 Both files now exist and use the correct `.j2` extension.
 
+## Issue 3: Missing Prompt Templates
+
+The PlannerAgent also needed additional prompt templates:
+
+### Problem
+- PromptManager requires 4 templates: system, user, additional_info, microagent_info
+- Only had system_prompt templates initially
+
+### Solution
+✅ Created `user_prompt.j2` (empty file, standard for all agents)
+✅ Copied `additional_info.j2` from CodeActAgent (runtime/repository info)
+✅ Copied `microagent_info.j2` from CodeActAgent (triggered agents info)
+
+All required prompt files are now in place.
+
 ## Summary of Fixes
 
 1. ✅ Fixed AgentConfig initialization (no parameters needed)
 2. ✅ Fixed LLM configuration (use OpenHandsConfig + LLMRegistry)
 3. ✅ Fixed prompt file naming (`.j2` extension, not `.jinja2`)
 4. ✅ Added `system_prompt_long_horizon.j2` for plan mode
+5. ✅ Added missing prompt templates (user_prompt, additional_info, microagent_info)
 
 The PlannerAgent should now initialize and run without errors!
 
